@@ -1,0 +1,44 @@
+# Single-node SeaweedFS with the S3 gateway enabled,
+# backed by the cluster's default "standard" storage class for local development.
+master:
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+volume:
+  dataDirs:
+    - name: data1
+      type: persistentVolumeClaim
+      size: 2Gi
+      storageClass: standard
+      maxVolumes: 0
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+filer:
+  s3:
+    enabled: true
+    enableAuth: true # Credentials are read from the secret created by bootstrap.sh
+    existingConfigSecret: karirden-learn-seaweedfs-s3
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

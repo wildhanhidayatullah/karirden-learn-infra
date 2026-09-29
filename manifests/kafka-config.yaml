@@ -1,0 +1,24 @@
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: karirden-learn-kafka
+spec:
+  kafka:
+    # Kafka/metadataVersion are coupled to STRIMZI_CHART_VERSION (see versions.sh).
+    # Strimzi 1.2.0 supports Kafka 4.2.0/4.2.1/4.3.0/4.3.1 (KRaft only).
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}

@@ -1,0 +1,29 @@
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  labels:
+    strimzi.io/cluster: karirden-learn-kafka # Ties this node pool to this Kafka cluster name
+spec:
+  # Single node for local development.
+  # Raise to 3 (and bump the replication factors in kafka-config.yaml) for a production-like setup.
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: persistent-claim
+        size: 1Gi
+        class: standard
+        deleteClaim: false
+        kraftMetadata: shared
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

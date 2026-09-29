@@ -1,0 +1,29 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: karirden-learn-postgres
+spec:
+  # PostgreSQL image is pinned explicitly (tag + digest)
+  # so the version is stable and does not silently follow CNPG operator upgrades.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-system-trixie@sha256:42708a75345b7a48fdd9257b071830783a97fd228529196b6313187a7198e185
+  # Single instance for local development.
+  # Raise to 3 for a highly available, production-like cluster.
+  instances: 1
+  storage:
+    size: 1Gi
+    storageClass: standard
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  bootstrap:
+    initdb:
+      database: karirden_learn
+      owner: karirden
+      # The secret is created by bootstrap.sh as a kubernetes.io/basic-auth secret
+      # whose username matches the owner.
+      secret:
+        name: karirden-learn-postgres-app

@@ -1,0 +1,23 @@
+# Standalone Valkey for local development.
+# For replication/HA, see the chart's `replica` section,
+# not enabled for the resource-conscious dev profile.
+dataStorage:
+  enabled: true
+  requestedSize: 1Gi
+  className: standard
+  keepPvc: true
+auth:
+  enabled: true
+  usersExistingSecret: karirden-learn-valkey-auth # Password is read from the secret created by bootstrap.sh (key "default")
+  aclUsers:
+    default:
+      # Broad but excludes dangerous/admin commands (CONFIG, FLUSHALL, DEBUG, SHUTDOWN, KEYS, ...).
+      # Tighten further per application needs.
+      permissions: "~* &* +@all -@dangerous -@admin"
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
