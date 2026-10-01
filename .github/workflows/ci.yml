@@ -1,0 +1,138 @@
+name: infra-ci
+
+on:
+  pull_request:
+    paths:
+      - "bootstrap.sh"
+      - "kind-config.yaml"
+      - "versions.sh"
+      - "helm-repos.sh"
+      - "helm-values/**"
+      - "manifests/**"
+      - ".yamllint"
+      - ".github/workflows/ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "bootstrap.sh"
+      - "kind-config.yaml"
+      - "versions.sh"
+      - "helm-repos.sh"
+      - "helm-values/**"
+      - "manifests/**"
+      - ".yamllint"
+      - ".github/workflows/ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-scripts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Bash syntax check
+        run: |
+          bash -n bootstrap.sh
+          bash -n versions.sh
+          bash -n helm-repos.sh
+      - name: ShellCheck
+        run: |
+          shellcheck bootstrap.sh
+          shellcheck versions.sh
+          shellcheck helm-repos.sh
+
+  lint-yaml:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Load pinned versions
+        run: grep -E '^[A-Z_][A-Z0-9_]*=' versions.sh >> "$GITHUB_ENV"
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.x"
+      - name: Install yamllint
+        run: pip install "yamllint==${YAMLLINT_VERSION}"
+      - name: Run yamllint
+        run: yamllint kind-config.yaml manifests helm-values .github/workflows
+      - name: Check README lists the pinned chart versions
+        run: |
+          status=0
+          while IFS='=' read -r key value; do
+            if ! grep -q "$value" README.md; then
+              echo "README.md is missing $key=$value" >&2
+              status=1
+            fi
+          done < <(grep -E '^[A-Z_]+_CHART_VERSION=' versions.sh)
+          exit "$status"
+
+  validate-manifests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Load pinned versions
+        run: grep -E '^[A-Z_][A-Z0-9_]*=' versions.sh >> "$GITHUB_ENV"
+      - name: Install kubeconform
+        run: |
+          curl -sSLo kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+      - name: Validate Kubernetes manifests
+        run: |
+          kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/${CRDS_CATALOG_SHA}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" \
+            manifests/
+
+  render-helm-charts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Load pinned versions
+        id: versions
+        run: |
+          grep -E '^[A-Z_][A-Z0-9_]*=' versions.sh >> "$GITHUB_ENV"
+          echo "helm_version=$(grep -E '^HELM_VERSION=' versions.sh | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: ${{ steps.versions.outputs.helm_version }}
+      - name: Install kubeconform
+        run: |
+          curl -sSLo kubeconform.tar.gz \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf kubeconform.tar.gz
+          sudo mv kubeconform /usr/local/bin/
+      - name: Add Helm repositories
+        run: |
+          source ./helm-repos.sh
+          add_helm_repos
+      - name: Render and validate charts used by bootstrap
+        run: |
+          mkdir -p rendered
+          helm template valkey valkey/valkey --version "$VALKEY_CHART_VERSION" -f helm-values/valkey.yaml > rendered/valkey.yaml
+          helm template qdrant qdrant/qdrant --version "$QDRANT_CHART_VERSION" -f helm-values/qdrant.yaml > rendered/qdrant.yaml
+          helm template seaweedfs seaweedfs/seaweedfs --version "$SEAWEEDFS_CHART_VERSION" -f helm-values/seaweedfs.yaml > rendered/seaweedfs.yaml
+          helm template strimzi-operator oci://quay.io/strimzi-helm/strimzi-kafka-operator --version "$STRIMZI_CHART_VERSION" > rendered/strimzi.yaml
+          helm template cnpg cnpg/cloudnative-pg --version "$CNPG_CHART_VERSION" -n cnpg-system > rendered/cnpg.yaml
+          kubeconform -strict -summary -skip CustomResourceDefinition \
+            -schema-location default \
+            -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/${CRDS_CATALOG_SHA}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" \
+            rendered/

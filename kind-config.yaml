@@ -1,0 +1,25 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+# The cluster is named by bootstrap.sh via --name (CLUSTER_NAME), not here.
+nodes:
+  # Node image is pinned by digest so the Kubernetes version is reproducible.
+  # Kubernetes 1.36.x is within Strimzi 1.2.0's tested range (1.30 - 1.36).
+  # This static pin is documented in versions.sh.
+  - role: control-plane
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+    # Bound to localhost only; there is no Ingress yet.
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 8080
+        listenAddress: 127.0.0.1
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        listenAddress: 127.0.0.1
+        protocol: TCP
+  # Two workers give the stateful workloads scheduling headroom even though
+  # this is a resource-conscious development profile.
+  - role: worker
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+  - role: worker
+    image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed

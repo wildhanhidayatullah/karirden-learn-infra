@@ -1,0 +1,18 @@
+# Single-node Qdrant for local development.
+# The API key is read from the secret created by bootstrap.sh (stable across runs).
+replicaCount: 1
+apiKey:
+  valueFrom:
+    secretKeyRef:
+      name: karirden-learn-qdrant-apikey
+      key: api-key
+persistence:
+  size: 1Gi
+  storageClassName: standard
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
